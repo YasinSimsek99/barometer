@@ -207,30 +207,34 @@ final class AppModel: ObservableObject {
         guard !notificationRequestInFlight else { return }
         notificationRequestInFlight = true
 
-        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
-            let authorizationStatus = settings.authorizationStatus
-            Task { @MainActor in
-                guard let self else { return }
-                switch authorizationStatus {
-                case .authorized, .provisional, .ephemeral:
-                    self.notificationRequestInFlight = false
-                    self.preferences.notificationsEnabled = true
-                    self.setError(nil)
-                    self.logger.notice("Usage notifications enabled")
-                    self.refresh()
-                case .denied:
-                    self.notificationRequestInFlight = false
-                    self.preferences.notificationsEnabled = false
-                    self.showsNotificationsSettingsPopover = true
-                    self.logger.error("Notification authorization is denied")
-                case .notDetermined:
-                    self.requestNotificationAuthorization()
-                @unknown default:
-                    self.notificationRequestInFlight = false
-                    self.preferences.notificationsEnabled = false
-                    self.setError("The current notification authorization state is unsupported.")
-                    self.logger.error("Unknown notification authorization state")
-                }
+        // Uses the async UserNotifications API rather than a completion-handler
+        // closure. UNUserNotificationCenter invokes completion handlers from an
+        // arbitrary background queue, and Swift can misinfer such a closure as
+        // inheriting this @MainActor method's isolation, which then traps at
+        // runtime when the framework actually calls it off the main thread.
+        // await correctly resumes back on this method's actor instead.
+        Task { [weak self] in
+            guard let self else { return }
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                self.notificationRequestInFlight = false
+                self.preferences.notificationsEnabled = true
+                self.setError(nil)
+                self.logger.notice("Usage notifications enabled")
+                self.refresh()
+            case .denied:
+                self.notificationRequestInFlight = false
+                self.preferences.notificationsEnabled = false
+                self.showsNotificationsSettingsPopover = true
+                self.logger.error("Notification authorization is denied")
+            case .notDetermined:
+                await self.requestNotificationAuthorization()
+            @unknown default:
+                self.notificationRequestInFlight = false
+                self.preferences.notificationsEnabled = false
+                self.setError("The current notification authorization state is unsupported.")
+                self.logger.error("Unknown notification authorization state")
             }
         }
     }
@@ -254,36 +258,34 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func requestNotificationAuthorization() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { [weak self] granted, error in
-            Task { @MainActor in
-                guard let self else { return }
-                self.notificationRequestInFlight = false
-                self.preferences.notificationsEnabled = granted
-                if let error {
-                    self.setError("Notifications could not be enabled: \(error.localizedDescription)")
-                    self.logger.error("Notification authorization failed: \(error.localizedDescription, privacy: .public)")
-                } else if granted {
-                    self.setError(nil)
-                    self.logger.notice("Notification authorization granted")
-                    self.refresh()
-                } else {
-                    self.showsNotificationsSettingsPopover = true
-                    self.logger.notice("Notification authorization was not granted")
-                }
+    private func requestNotificationAuthorization() async {
+        do {
+            let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+            notificationRequestInFlight = false
+            preferences.notificationsEnabled = granted
+            if granted {
+                setError(nil)
+                logger.notice("Notification authorization granted")
+                refresh()
+            } else {
+                showsNotificationsSettingsPopover = true
+                logger.notice("Notification authorization was not granted")
             }
+        } catch {
+            notificationRequestInFlight = false
+            preferences.notificationsEnabled = false
+            setError("Notifications could not be enabled: \(error.localizedDescription)")
+            logger.error("Notification authorization failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     private func synchronizeNotificationAuthorization() {
         guard supportsUserNotifications else { return }
-        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
-            let authorizationStatus = settings.authorizationStatus
-            Task { @MainActor in
-                guard let self else { return }
-                if authorizationStatus == .denied {
-                    self.preferences.notificationsEnabled = false
-                }
+        Task { [weak self] in
+            guard let self else { return }
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            if settings.authorizationStatus == .denied {
+                self.preferences.notificationsEnabled = false
             }
         }
     }
@@ -311,14 +313,14 @@ final class AppModel: ObservableObject {
             content.title = "Claude \(event.windowLabel) usage is \(Int(event.usedPercentage.rounded()))%"
             content.body = event.threshold == 90 ? "You are close to the usage limit." : "Usage passed \(event.threshold)%."
             content.sound = .default
-            UNUserNotificationCenter.current().add(
-                UNNotificationRequest(identifier: event.identifier, content: content, trigger: nil),
-                withCompletionHandler: { [logger] error in
-                    if let error {
-                        logger.error("Notification delivery failed: \(error.localizedDescription, privacy: .public)")
-                    }
+            let request = UNNotificationRequest(identifier: event.identifier, content: content, trigger: nil)
+            Task { [logger] in
+                do {
+                    try await UNUserNotificationCenter.current().add(request)
+                } catch {
+                    logger.error("Notification delivery failed: \(error.localizedDescription, privacy: .public)")
                 }
-            )
+            }
         }
     }
 
