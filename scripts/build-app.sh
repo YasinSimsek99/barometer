@@ -4,7 +4,7 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 IDENTITY="$PROJECT_DIR/Sources/BarometerCore/Resources/AppIdentity.json"
 OUTPUT_ROOT="${1:-$PROJECT_DIR/.build}"
-VERSION="${BAROMETER_VERSION:-0.1.0-dev}"
+VERSION="${BAROMETER_VERSION:-1.0.0-dev}"
 
 if [[ -z "${DEVELOPER_DIR:-}" && -d /Applications/Xcode.app/Contents/Developer ]]; then
   export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer

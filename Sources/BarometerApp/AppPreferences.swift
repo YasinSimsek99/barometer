@@ -29,12 +29,14 @@ final class AppPreferences: ObservableObject {
         let previousDisplayStyle = defaults.string(forKey: Key.displayStyle)
         let migratedDisplayStyle: DisplayStyle
         switch previousDisplayStyle {
-        case DisplayStyle.text.rawValue, "labeled", "percentage":
-            migratedDisplayStyle = .text
+        case DisplayStyle.icon.rawValue:
+            migratedDisplayStyle = .icon
         case DisplayStyle.ring.rawValue:
             migratedDisplayStyle = .ring
         default:
-            migratedDisplayStyle = .icon
+            // Also covers a fresh install (nil) and retired legacy values
+            // ("labeled", "percentage") — Text is the default appearance.
+            migratedDisplayStyle = .text
         }
         displayStyle = migratedDisplayStyle
         defaults.set(migratedDisplayStyle.rawValue, forKey: Key.displayStyle)

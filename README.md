@@ -30,15 +30,15 @@ or grab the signed, notarized `.dmg` or `.zip` straight from the [Releases page]
 For a scripted install with checksum + notarization verification:
 
 ```bash
-curl -fsSL https://github.com/YasinSimsek99/barometer/releases/download/v0.1.1/install-v0.1.1.sh | bash
+curl -fsSL https://github.com/YasinSimsek99/barometer/releases/download/v1.0.0/install-v1.0.0.sh | bash
 ```
 
 Prefer to inspect the script first:
 
 ```bash
-curl -fsSLO https://github.com/YasinSimsek99/barometer/releases/download/v0.1.1/install-v0.1.1.sh
-less install-v0.1.1.sh
-bash install-v0.1.1.sh
+curl -fsSLO https://github.com/YasinSimsek99/barometer/releases/download/v1.0.0/install-v1.0.0.sh
+less install-v1.0.0.sh
+bash install-v1.0.0.sh
 ```
 
 Every route installs to `~/Applications/Barometer.app`. None use `sudo`.

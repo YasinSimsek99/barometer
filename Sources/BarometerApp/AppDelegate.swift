@@ -275,21 +275,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 style: model.preferences.displayStyle == .ring ? .ring : .needle
             )
         } else {
-            let countdown = countdownValue.map { value in
-                switch model.preferences.metricMode {
-                case .fiveHour, .sevenDay:
-                    return value.text
-                case .both, .highest:
-                    return "\(value.windowLabel)\(value.text)"
+            let title: String
+            if model.preferences.metricMode == .both {
+                // Appending the countdown at the end (e.g. "5h 71% · 7d 30% ·
+                // 5h↻50m") reads as detached from whichever window it belongs
+                // to. Interleave it next to that window's own percentage
+                // instead ("5h 71%↻50m · 7d 30%").
+                title = bothMetricTitle(snapshot: model.snapshot, countdown: countdownValue)
+            } else {
+                let countdown = countdownValue.map { value in
+                    switch model.preferences.metricMode {
+                    case .fiveHour, .sevenDay:
+                        return value.text
+                    case .both, .highest:
+                        return "\(value.windowLabel)\(value.text)"
+                    }
                 }
+                title = countdown.map { "\(formattedTitle) · \($0)" } ?? formattedTitle
             }
-            let title = countdown.map { "\(formattedTitle) · \($0)" } ?? formattedTitle
             button.image = StatusTextImage.make(text: title, isStale: isStale)
         }
         button.imagePosition = .imageOnly
         button.imageScaling = .scaleNone
         button.contentTintColor = .white
         button.toolTip = statusToolTip
+    }
+
+    private func bothMetricTitle(snapshot: UsageSnapshot?, countdown: ResetCountdownValue?) -> String {
+        func percentageText(_ window: RateLimitWindow?) -> String {
+            window.map { "\(Int($0.usedPercentage.rounded()))%" } ?? "—"
+        }
+        var fivePart = "5h \(percentageText(snapshot?.fiveHour))"
+        var sevenPart = "7d \(percentageText(snapshot?.sevenDay))"
+        if let countdown {
+            switch countdown.windowLabel {
+            case "5h": fivePart += countdown.text
+            case "7d": sevenPart += countdown.text
+            default: break
+            }
+        }
+        return "\(fivePart) · \(sevenPart)"
     }
 
     private func statusRingMetrics(snapshot: UsageSnapshot?) -> [StatusRingImage.Metric] {
