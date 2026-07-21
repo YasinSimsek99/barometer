@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Verify tag points at this commit
+        run: test "$(git rev-list -n 1 "$GITHUB_REF_NAME")" = "$GITHUB_SHA"
+      - name: Test source
+        run: swift test -Xswiftc -warnings-as-errors
+      - name: Build release app bundle
+        run: BAROMETER_VERSION="${GITHUB_REF_NAME#v}" scripts/build-app.sh
+      - name: Import Developer ID certificate into a temporary keychain
+        env:
+          CERTIFICATE_P12_B64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PASSWORD="$(/usr/bin/openssl rand -base64 32)"
+          KEYCHAIN_PATH="$RUNNER_TEMP/barometer-signing.keychain-db"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "$CERTIFICATE_P12_B64" | /usr/bin/base64 --decode -o "$RUNNER_TEMP/cert.p12"
+          /usr/bin/security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          /usr/bin/security set-keychain-settings -lut 1200 "$KEYCHAIN_PATH"
+          /usr/bin/security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          /usr/bin/security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN_PATH" \
+            -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          /usr/bin/security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          /usr/bin/security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          /bin/rm -f "$RUNNER_TEMP/cert.p12"
+      - name: Sign, notarize, and staple
+        env:
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+          NOTARY_KEY_P8_B64: ${{ secrets.NOTARY_KEY_P8 }}
+        run: |
+          echo "$NOTARY_KEY_P8_B64" | /usr/bin/base64 --decode -o "$RUNNER_TEMP/notary-key.p8"
+          export NOTARY_KEY_PATH="$RUNNER_TEMP/notary-key.p8"
+          scripts/notarize.sh ".build/Barometer.app" "${{ vars.CODESIGN_IDENTITY }}"
+          /bin/rm -f "$RUNNER_TEMP/notary-key.p8"
+      - name: Package notarized app
+        run: |
+          /bin/mkdir -p .build/release-assets
+          /usr/bin/ditto -c -k --keepParent ".build/Barometer.app" \
+            ".build/release-assets/Barometer-${GITHUB_REF_NAME#v}.zip"
+      - name: Package disk image
+        run: |
+          scripts/build-dmg.sh ".build/Barometer.app" \
+            ".build/release-assets/Barometer-${GITHUB_REF_NAME#v}.dmg" \
+            "${{ vars.CODESIGN_IDENTITY }}"
+      - name: Generate installer and Cask
+        run: scripts/render-release-assets.sh "$GITHUB_REF_NAME" ".build/release-assets/Barometer-${GITHUB_REF_NAME#v}.zip"
+      - name: Generate SBOM
+        run: scripts/generate-sbom.sh "$GITHUB_REF_NAME" ".build/release-assets/barometer-$GITHUB_REF_NAME.cdx.json"
+      - name: Generate checksums
+        working-directory: .build/release-assets
+        run: shasum -a 256 install-*.sh *.rb *.cdx.json *.zip *.dmg > SHA256SUMS
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes .build/release-assets/*
+      - name: Remove temporary signing keychain
+        if: always()
+        run: '[[ -n "${KEYCHAIN_PATH:-}" ]] && /usr/bin/security delete-keychain "$KEYCHAIN_PATH" || true'

@@ -1,0 +1,52 @@
+#!/bin/bash
+set -euo pipefail
+
+VERSION="@VERSION@"
+BINARY_SHA256="@BINARY_SHA256@"
+REPOSITORY="@REPOSITORY@"
+APP_NAME="@APP_NAME@"
+ZIP_URL="https://github.com/$REPOSITORY/releases/download/$VERSION/$APP_NAME-${VERSION#v}.zip"
+INSTALL_DIR="${BAROMETER_INSTALL_DIR:-$HOME/Applications}"
+DESTINATION="$INSTALL_DIR/$APP_NAME.app"
+WORK_DIR="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/barometer-release.XXXXXX")"
+
+cleanup() { /bin/rm -rf "$WORK_DIR"; }
+trap cleanup EXIT
+
+if [[ "$EUID" -eq 0 ]]; then
+  echo "Do not run this installer with sudo. Barometer is installed only for the current user." >&2
+  exit 1
+fi
+
+/usr/bin/curl --fail --silent --show-error --location "$ZIP_URL" --output "$WORK_DIR/barometer.zip"
+ACTUAL_SHA256="$(/usr/bin/shasum -a 256 "$WORK_DIR/barometer.zip" | /usr/bin/awk '{print $1}')"
+if [[ "$ACTUAL_SHA256" != "$BINARY_SHA256" ]]; then
+  echo "Checksum verification failed. Nothing was installed." >&2
+  exit 1
+fi
+
+/usr/bin/ditto -x -k "$WORK_DIR/barometer.zip" "$WORK_DIR"
+[[ -d "$WORK_DIR/$APP_NAME.app" ]] || { echo "Release archive layout is invalid." >&2; exit 1; }
+/usr/bin/codesign --verify --deep --strict "$WORK_DIR/$APP_NAME.app"
+/usr/bin/spctl --assess --type execute "$WORK_DIR/$APP_NAME.app"
+
+/bin/mkdir -p "$INSTALL_DIR"
+if [[ ! -w "$INSTALL_DIR" ]]; then
+  echo "$INSTALL_DIR is not writable by $USER. Do not use sudo; repair the directory ownership first." >&2
+  exit 1
+fi
+
+# This backup/atomic-swap pattern intentionally mirrors scripts/install-local.sh — keep them in sync.
+BACKUP=""
+if [[ -e "$DESTINATION" ]]; then
+  BACKUP="$WORK_DIR/$APP_NAME.previous.app"
+  /bin/mv "$DESTINATION" "$BACKUP"
+fi
+
+if /bin/mv "$WORK_DIR/$APP_NAME.app" "$DESTINATION"; then
+  echo "$APP_NAME installed at $DESTINATION"
+else
+  [[ -n "$BACKUP" && -e "$BACKUP" ]] && /bin/mv "$BACKUP" "$DESTINATION"
+  echo "Installation failed; the previous version was restored." >&2
+  exit 1
+fi

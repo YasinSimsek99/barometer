@@ -1,0 +1,8 @@
+{
+  "appName": "Barometer",
+  "bundleIdentifier": "io.github.yasinsimsek.barometer",
+  "executableName": "Barometer",
+  "bridgeExecutableName": "barometer-bridge",
+  "repository": "yasinsimsek/barometer",
+  "schemaVersion": 1
+}

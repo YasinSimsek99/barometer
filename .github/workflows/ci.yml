@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Build
+        run: swift build -Xswiftc -warnings-as-errors
+      - name: Test
+        run: swift test -Xswiftc -warnings-as-errors
+      - name: Assemble ad-hoc app
+        run: scripts/build-app.sh
+      - name: Verify app signature
+        run: codesign --verify --deep --strict .build/Barometer.app
+      - name: Assemble disk image
+        run: scripts/build-dmg.sh .build/Barometer.app .build/Barometer-ci.dmg

@@ -1,0 +1,13 @@
+name: Security question
+description: Ask a non-sensitive security question. Do not disclose vulnerabilities here.
+labels: [security]
+body:
+  - type: markdown
+    attributes:
+      value: For vulnerabilities, follow SECURITY.md and report privately.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true

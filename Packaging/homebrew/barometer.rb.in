@@ -1,0 +1,26 @@
+cask "@FORMULA_NAME@" do
+  version "@VERSION@"
+  sha256 "@BINARY_SHA256@"
+
+  url "https://github.com/@REPOSITORY@/releases/download/@TAG@/@APP_NAME@-#{version}.zip"
+  name "@APP_NAME@"
+  desc "Private, local Claude Code usage monitor for the macOS menu bar"
+  homepage "https://github.com/@REPOSITORY@"
+
+  depends_on macos: ">= :sonoma"
+
+  app "@APP_NAME@.app"
+
+  uninstall quit:   "@BUNDLE_ID@",
+            script: {
+              executable: "@APP_NAME@.app/Contents/MacOS/@EXECUTABLE_NAME@",
+              args:       ["--prepare-uninstall"],
+              sudo:       false,
+            }
+
+  zap trash: [
+    "~/Library/Application Support/@BUNDLE_ID@",
+    "~/Library/Caches/@BUNDLE_ID@",
+    "~/Library/LaunchAgents/@BUNDLE_ID@.plist",
+  ]
+end
