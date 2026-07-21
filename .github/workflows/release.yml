@@ -16,6 +16,8 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+      - name: Select Xcode 16
+        run: sudo xcode-select -s "$(/usr/bin/find /Applications -maxdepth 1 -iname 'Xcode_16*.app' -print -quit)/Contents/Developer"
       - name: Verify tag points at this commit
         run: test "$(git rev-list -n 1 "$GITHUB_REF_NAME")" = "$GITHUB_SHA"
       - name: Test source
