@@ -16,7 +16,10 @@ jobs:
       - name: Check out source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Select Xcode 16
-        run: sudo xcode-select -s "$(/usr/bin/find /Applications -maxdepth 1 -iname 'Xcode_16*.app' -print -quit)/Contents/Developer"
+        run: |
+          XCODE_PATH="$(/usr/bin/find /Applications -maxdepth 1 -iname 'Xcode_16*.app' -print -quit)"
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          echo "DEVELOPER_DIR=$XCODE_PATH/Contents/Developer" >> "$GITHUB_ENV"
       - name: Build
         run: swift build -Xswiftc -warnings-as-errors
       - name: Test
