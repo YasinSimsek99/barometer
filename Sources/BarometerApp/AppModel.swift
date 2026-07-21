@@ -215,8 +215,8 @@ final class AppModel: ObservableObject {
         // await correctly resumes back on this method's actor instead.
         Task { [weak self] in
             guard let self else { return }
-            let settings = await UNUserNotificationCenter.current().notificationSettings()
-            switch settings.authorizationStatus {
+            let authorizationStatus = await Self.currentAuthorizationStatus()
+            switch authorizationStatus {
             case .authorized, .provisional, .ephemeral:
                 self.notificationRequestInFlight = false
                 self.preferences.notificationsEnabled = true
@@ -259,23 +259,19 @@ final class AppModel: ObservableObject {
     }
 
     private func requestNotificationAuthorization() async {
-        do {
-            let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
-            notificationRequestInFlight = false
-            preferences.notificationsEnabled = granted
-            if granted {
-                setError(nil)
-                logger.notice("Notification authorization granted")
-                refresh()
-            } else {
-                showsNotificationsSettingsPopover = true
-                logger.notice("Notification authorization was not granted")
-            }
-        } catch {
-            notificationRequestInFlight = false
-            preferences.notificationsEnabled = false
-            setError("Notifications could not be enabled: \(error.localizedDescription)")
-            logger.error("Notification authorization failed: \(error.localizedDescription, privacy: .public)")
+        let result = await Self.requestAuthorization()
+        notificationRequestInFlight = false
+        preferences.notificationsEnabled = result.granted
+        if let errorDescription = result.errorDescription {
+            setError("Notifications could not be enabled: \(errorDescription)")
+            logger.error("Notification authorization failed: \(errorDescription, privacy: .public)")
+        } else if result.granted {
+            setError(nil)
+            logger.notice("Notification authorization granted")
+            refresh()
+        } else {
+            showsNotificationsSettingsPopover = true
+            logger.notice("Notification authorization was not granted")
         }
     }
 
@@ -283,10 +279,44 @@ final class AppModel: ObservableObject {
         guard supportsUserNotifications else { return }
         Task { [weak self] in
             guard let self else { return }
-            let settings = await UNUserNotificationCenter.current().notificationSettings()
-            if settings.authorizationStatus == .denied {
+            let authorizationStatus = await Self.currentAuthorizationStatus()
+            if authorizationStatus == .denied {
                 self.preferences.notificationsEnabled = false
             }
+        }
+    }
+
+    // The helpers below are `nonisolated` and only ever hand back plain
+    // Sendable values (an enum, a Bool, a String?) — never a UNUserNotification*
+    // object itself — so that no type whose Sendable conformance depends on
+    // the SDK's own concurrency audit ever has to cross the @MainActor
+    // boundary. (`static` members of a @MainActor type are MainActor-isolated
+    // by default, so `nonisolated` has to be explicit here.)
+
+    nonisolated private static func currentAuthorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    nonisolated private static func requestAuthorization() async -> (granted: Bool, errorDescription: String?) {
+        do {
+            let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+            return (granted, nil)
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    nonisolated private static func deliverNotification(identifier: String, title: String, body: String) async -> String? {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+            return nil
+        } catch {
+            return error.localizedDescription
         }
     }
 
@@ -309,16 +339,11 @@ final class AppModel: ObservableObject {
         sentNotificationTokens = evaluation.sentTokens
         preferences.notificationTokens = evaluation.sentTokens
         for event in evaluation.events {
-            let content = UNMutableNotificationContent()
-            content.title = "Claude \(event.windowLabel) usage is \(Int(event.usedPercentage.rounded()))%"
-            content.body = event.threshold == 90 ? "You are close to the usage limit." : "Usage passed \(event.threshold)%."
-            content.sound = .default
-            let request = UNNotificationRequest(identifier: event.identifier, content: content, trigger: nil)
-            Task { [logger] in
-                do {
-                    try await UNUserNotificationCenter.current().add(request)
-                } catch {
-                    logger.error("Notification delivery failed: \(error.localizedDescription, privacy: .public)")
+            let title = "Claude \(event.windowLabel) usage is \(Int(event.usedPercentage.rounded()))%"
+            let body = event.threshold == 90 ? "You are close to the usage limit." : "Usage passed \(event.threshold)%."
+            Task { [logger, identifier = event.identifier] in
+                if let errorDescription = await Self.deliverNotification(identifier: identifier, title: title, body: body) {
+                    logger.error("Notification delivery failed: \(errorDescription, privacy: .public)")
                 }
             }
         }
