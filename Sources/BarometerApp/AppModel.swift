@@ -41,6 +41,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var eraseRequestInFlight = false
     @Published private(set) var showsNotificationsSettingsPopover = false
     @Published private(set) var showsLoginItemsSettingsPopover = false
+    @Published private(set) var updateCheckInFlight = false
+    @Published private(set) var updateCheckResult: UpdateCheckResult?
 
     let preferences: AppPreferences
     private let cache: UsageCache
@@ -69,6 +71,7 @@ final class AppModel: ObservableObject {
         repairLaunchAtLoginPath()
         synchronizeNotificationAuthorization()
         refresh()
+        checkForUpdatesIfDue()
         timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
@@ -141,6 +144,48 @@ final class AppModel: ObservableObject {
 
     func dismissNotificationsSettingsPopover() { showsNotificationsSettingsPopover = false }
     func dismissLoginItemsSettingsPopover() { showsLoginItemsSettingsPopover = false }
+
+    /// The only network request Barometer ever makes: either the user
+    /// clicks "Check for Updates", or (only if the user opted in via the
+    /// Settings toggle) `checkForUpdatesIfDue()` fires it at most once every
+    /// 24 hours, right after launch — never a recurring background timer,
+    /// and never anything that installs on its own. See PRIVACY.md.
+    func checkForUpdates() {
+        guard !updateCheckInFlight else { return }
+        updateCheckInFlight = true
+        updateCheckResult = nil
+        preferences.lastUpdateCheckDate = Date()
+        let repository = AppIdentity.current.repository
+        let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+        Task { [weak self] in
+            let result = await UpdateChecker.checkForUpdate(repository: repository, currentVersion: currentVersion)
+            guard let self else { return }
+            self.updateCheckInFlight = false
+            self.updateCheckResult = result
+            switch result {
+            case .upToDate:
+                self.logger.notice("Barometer is up to date")
+            case .updateAvailable(let version, _):
+                self.logger.notice("Update available: \(version, privacy: .public)")
+            case .failed(let message):
+                self.logger.error("Update check failed: \(message, privacy: .public)")
+            }
+        }
+    }
+
+    func openLatestRelease() {
+        guard case .updateAvailable(_, let url) = updateCheckResult else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    /// Called once at launch. Only ever runs the check if the user opted in
+    /// via Settings, and only if it hasn't already run in the last 24 hours
+    /// — this is a one-shot launch-time gate, not a recurring timer.
+    private func checkForUpdatesIfDue() {
+        guard preferences.autoCheckForUpdatesEnabled else { return }
+        if let last = preferences.lastUpdateCheckDate, Date().timeIntervalSince(last) < 86400 { return }
+        checkForUpdates()
+    }
 
     private func setError(_ message: String?) {
         lastError = message

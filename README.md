@@ -8,7 +8,7 @@
 
 Barometer puts your Claude Code 5-hour and 7-day rate-limit usage and reset countdowns in the macOS menu bar — no dashboard, no browser tab, just a glance.
 
-It reads only `rate_limits.five_hour` and `rate_limits.seven_day` from Claude Code's local status-line output. Everything else — credentials, OAuth tokens, cookies, API keys, prompts, transcripts, model details, context usage, token counts, cost, working directory — is discarded before it reaches the app. **No network requests. No analytics. No telemetry.**
+It reads only `rate_limits.five_hour` and `rate_limits.seven_day` from Claude Code's local status-line output. Everything else — credentials, OAuth tokens, cookies, API keys, prompts, transcripts, model details, context usage, token counts, cost, working directory — is discarded before it reaches the app. **No background network requests. No analytics. No telemetry.** The only network call Barometer ever makes is "Check for Updates" against GitHub's public releases API — triggered on demand, or automatically once a day if the user opts in — see [PRIVACY.md](PRIVACY.md).
 
 Left-click the menu bar icon for the usage panel. Right-click for quick access to refresh, display style, notifications, launch at login, and settings.
 

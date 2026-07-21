@@ -263,7 +263,7 @@ struct ContentView: View {
                     Hairline()
                     PrivacyLine(symbol: "text.bubble", text: "No prompts, conversations, or transcripts")
                     Hairline()
-                    PrivacyLine(symbol: "network.slash", text: "No network requests or analytics")
+                    PrivacyLine(symbol: "network.slash", text: "No background network requests or analytics")
                 }
             }
 
@@ -406,7 +406,62 @@ struct ContentView: View {
                 integrationSettings
             }
 
+            SettingsSection(title: "UPDATES") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Version \(currentVersionText)")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Palette.textPrimary)
+                        if let updateStatusText {
+                            Text(updateStatusText)
+                                .font(.system(size: 11))
+                                .foregroundStyle(Palette.textTertiary)
+                        }
+                    }
+                    Spacer()
+                    updateActionButton
+                }
+                .padding(.vertical, 9)
+
+                RowDivider()
+
+                settingsToggleRow(
+                    title: "Check automatically once a day",
+                    systemImage: "arrow.triangle.2.circlepath",
+                    isOn: Binding(
+                        get: { model.preferences.autoCheckForUpdatesEnabled },
+                        set: { model.preferences.autoCheckForUpdatesEnabled = $0 }
+                    )
+                )
+            }
+
             dataSection
+        }
+    }
+
+    private var currentVersionText: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+    }
+
+    private var updateStatusText: String? {
+        if model.updateCheckInFlight { return "Checking…" }
+        switch model.updateCheckResult {
+        case nil: return nil
+        case .upToDate: return "You're up to date"
+        case .updateAvailable(let version, _): return "\(version) is available"
+        case .failed(let message): return message
+        }
+    }
+
+    @ViewBuilder
+    private var updateActionButton: some View {
+        if case .updateAvailable = model.updateCheckResult {
+            Button("Update") { model.openLatestRelease() }
+                .buttonStyle(GhostButtonStyle(compact: true))
+        } else {
+            Button("Check") { model.checkForUpdates() }
+                .buttonStyle(GhostButtonStyle(compact: true))
+                .disabled(model.updateCheckInFlight)
         }
     }
 

@@ -200,6 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let connection = item(connectionTitle, action: #selector(showConnectionSettings), symbol: "terminal")
         menu.addItem(connection)
         menu.addItem(item("Settings…", action: #selector(showSettings), key: ",", symbol: "slider.horizontal.3"))
+        menu.addItem(item("Check for Updates…", action: #selector(checkForUpdates), symbol: "arrow.down.circle"))
         menu.addItem(.separator())
         menu.addItem(item("Quit \(AppIdentity.current.appName)", action: #selector(quit), key: "q", symbol: "power"))
         return menu
@@ -248,6 +249,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         model.setLaunchAtLogin(!model.launchAtLoginEnabled)
     }
     @objc private func quit() { NSApp.terminate(nil) }
+    @objc private func checkForUpdates() {
+        model.checkForUpdates()
+        showPanel(settings: true)
+    }
 
     private func updateStatusItem() {
         guard let button = statusItem?.button else { return }

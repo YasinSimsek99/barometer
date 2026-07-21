@@ -11,6 +11,7 @@ Barometer protects Claude Code settings, status-line input, local usage data, an
 3. The integration manager updates one field in `~/.claude/settings.json`.
 4. Installation tooling downloads source code, or a signed release archive, from GitHub before local compilation or installation.
 5. Tagged releases are signed with a Developer ID certificate and verified by Apple's notary service; the CI release job holds the signing certificate and notarization credentials only for the duration of that job.
+6. Settings → Updates → “Check” sends a single explicit, user-initiated HTTPS request to GitHub's public releases API — the only network request the running app ever makes on its own. If the user opts into the "Check automatically once a day" toggle in that same section, the identical request also fires at most once every 24 hours, right after launch.
 
 ## Threats and mitigations
 
@@ -31,6 +32,7 @@ Barometer protects Claude Code settings, status-line input, local usage data, an
 | Local data is erased by a script or a second person at the keyboard without the device owner's consent | "Erase All Local Data" is gated by `LAPolicy.deviceOwnerAuthentication` (Touch ID or the account password) evaluated on-device via LocalAuthentication; the erase only proceeds after that policy succeeds. |
 | Dependency or CI compromise | There are no runtime package dependencies; CI actions are pinned to full commit SHAs and receive read-only permissions except the tag-only release job. |
 | Signing certificate or notarization credentials are leaked or stolen | The release job imports the certificate into a keychain created fresh for that job run and always deletes it afterward; notarization uses a revocable App Store Connect API key rather than an Apple ID password; credentials are only ever present as encrypted CI secrets or in the maintainer's local keychain, never committed or logged. |
+| The update check becomes a silent tracking or auto-update vector | It is off by default. The user can fire it explicitly at any time, or opt into an automatic mode that, even then, runs at most once every 24 hours at launch — never a recurring background timer. Neither path sends any identifier beyond a standard HTTPS request to GitHub's own public API, and neither ever downloads or installs anything automatically — it only offers a link to the Releases page. |
 
 ## Known limitations
 

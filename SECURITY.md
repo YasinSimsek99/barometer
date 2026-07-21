@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Barometer is pre-1.0. Security fixes are applied to the latest tagged release and `master`.
+Security fixes are applied to the latest tagged release and `master`.
 
 ## Reporting a vulnerability
 
@@ -20,7 +20,7 @@ Do not include real prompts, transcripts, tokens, cookies, or account data. We a
 ## Security invariants
 
 - No Claude credential, cookie, OAuth token, or API key is requested or read.
-- No network request is made by the running application or bridge.
+- The running application and bridge make no automatic or background network requests beyond the update check, which is off by default. The user can trigger it on demand (Settings → Updates → "Check"), or opt into an automatic check that runs at most once every 24 hours at launch (never a recurring timer). Either path only sends a request to GitHub's public releases API, with no identifiers or usage data, and never downloads or installs anything automatically.
 - Only sanitized rate-limit percentages, reset times, and capture metadata may be persisted.
 - Installation never uses `sudo`, clears quarantine attributes, or disables Gatekeeper.
 - Source installations refuse to run as root and launch-at-login uses only the current user's LaunchAgents directory.

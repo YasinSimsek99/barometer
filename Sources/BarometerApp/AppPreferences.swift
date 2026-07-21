@@ -11,6 +11,8 @@ final class AppPreferences: ObservableObject {
         static let notificationsEnabled = "notifications.enabled"
         static let onboardingCompleted = "onboarding.completed"
         static let notificationTokens = "notifications.sentTokens"
+        static let autoCheckForUpdatesEnabled = "updates.autoCheckEnabled"
+        static let lastUpdateCheckDate = "updates.lastCheckDate"
     }
 
     private let defaults: UserDefaults
@@ -20,12 +22,13 @@ final class AppPreferences: ObservableObject {
     @Published var showResetCountdown: Bool { didSet { defaults.set(showResetCountdown, forKey: Key.showResetCountdown) } }
     @Published var notificationsEnabled: Bool { didSet { defaults.set(notificationsEnabled, forKey: Key.notificationsEnabled) } }
     @Published var onboardingCompleted: Bool { didSet { defaults.set(onboardingCompleted, forKey: Key.onboardingCompleted) } }
+    @Published var autoCheckForUpdatesEnabled: Bool { didSet { defaults.set(autoCheckForUpdatesEnabled, forKey: Key.autoCheckForUpdatesEnabled) } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         defaults.removeObject(forKey: "display.percentageTintColor")
         defaults.removeObject(forKey: "display.iconTintColor")
-        metricMode = MetricMode(rawValue: defaults.string(forKey: Key.metricMode) ?? "") ?? .both
+        metricMode = MetricMode(rawValue: defaults.string(forKey: Key.metricMode) ?? "") ?? .fiveHour
         let previousDisplayStyle = defaults.string(forKey: Key.displayStyle)
         let migratedDisplayStyle: DisplayStyle
         switch previousDisplayStyle {
@@ -35,8 +38,8 @@ final class AppPreferences: ObservableObject {
             migratedDisplayStyle = .ring
         default:
             // Also covers a fresh install (nil) and retired legacy values
-            // ("labeled", "percentage") — Text is the default appearance.
-            migratedDisplayStyle = .text
+            // ("labeled", "percentage") — Ring is the default appearance.
+            migratedDisplayStyle = .ring
         }
         displayStyle = migratedDisplayStyle
         defaults.set(migratedDisplayStyle.rawValue, forKey: Key.displayStyle)
@@ -44,10 +47,16 @@ final class AppPreferences: ObservableObject {
         showResetCountdown = defaults.bool(forKey: Key.showResetCountdown)
         notificationsEnabled = defaults.bool(forKey: Key.notificationsEnabled)
         onboardingCompleted = defaults.bool(forKey: Key.onboardingCompleted)
+        autoCheckForUpdatesEnabled = defaults.bool(forKey: Key.autoCheckForUpdatesEnabled)
     }
 
     var notificationTokens: Set<String> {
         get { Set(defaults.stringArray(forKey: Key.notificationTokens) ?? []) }
         set { defaults.set(Array(newValue).sorted(), forKey: Key.notificationTokens) }
+    }
+
+    var lastUpdateCheckDate: Date? {
+        get { defaults.object(forKey: Key.lastUpdateCheckDate) as? Date }
+        set { defaults.set(newValue, forKey: Key.lastUpdateCheckDate) }
     }
 }

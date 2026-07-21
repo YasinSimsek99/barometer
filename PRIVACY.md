@@ -25,11 +25,11 @@ Barometer does not retain Claude credentials, cookies, API keys, account identif
 
 ## Network and third parties
 
-The running app and bridge make no network requests. There are no analytics, advertisements, crash reporters, remote configuration services, or automatic updaters. Homebrew, the installer, and a direct release download access GitHub only to download source or a signed release archive for installation. On a fresh download, macOS's own Gatekeeper may independently perform a brief online check of the app's notarization ticket on first launch; this is a check macOS itself performs, not a request Barometer makes, and it does not recur on later launches.
+The running app and bridge make no automatic or background network requests by default. There are no analytics, advertisements, crash reporters, or remote configuration services. The one exception is the update check: Settings → Updates → “Check” runs it on demand whenever the user clicks it, and if the user turns on the “Check automatically once a day” toggle in that same section, the same check also runs at most once every 24 hours, right after launch — never on a recurring background timer. Either way it sends a single unauthenticated `GET` to GitHub's public releases API (`api.github.com/repos/<owner>/barometer/releases/latest`) to read the latest tag name, and nothing else — no identifiers, no usage data, no credentials. Nothing is downloaded or installed automatically; a result only offers a link to the Releases page for the user to open themselves. Homebrew, the installer, and a direct release download access GitHub only to download source or a signed release archive for installation. On a fresh download, macOS's own Gatekeeper may independently perform a brief online check of the app's notarization ticket on first launch; this is a check macOS itself performs, not a request Barometer makes, and it does not recur on later launches.
 
 ## Local configuration
 
-The app stores display preferences and notification state in macOS `UserDefaults`. Claude integration state and backups are stored under:
+The app stores display, notification, and update-check preferences (including whether automatic checks are enabled and when one last ran) in macOS `UserDefaults`. Claude integration state and backups are stored under:
 
 ```text
 ~/Library/Application Support/io.github.yasinsimsek.barometer/
