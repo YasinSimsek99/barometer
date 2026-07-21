@@ -69,6 +69,6 @@ echo "Submitting to Apple notary service..."
 echo "Stapling notarization ticket..."
 /usr/bin/xcrun stapler staple "$APP_BUNDLE"
 /usr/bin/xcrun stapler validate "$APP_BUNDLE"
-/usr/bin/spctl --assess --type execute --verbose "$APP_BUNDLE"
+/usr/sbin/spctl --assess --type execute --verbose "$APP_BUNDLE"
 
 echo "$APP_BUNDLE is signed, notarized, and stapled."

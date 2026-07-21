@@ -28,7 +28,7 @@ fi
 /usr/bin/ditto -x -k "$WORK_DIR/barometer.zip" "$WORK_DIR"
 [[ -d "$WORK_DIR/$APP_NAME.app" ]] || { echo "Release archive layout is invalid." >&2; exit 1; }
 /usr/bin/codesign --verify --deep --strict "$WORK_DIR/$APP_NAME.app"
-/usr/bin/spctl --assess --type execute "$WORK_DIR/$APP_NAME.app"
+/usr/sbin/spctl --assess --type execute "$WORK_DIR/$APP_NAME.app"
 
 /bin/mkdir -p "$INSTALL_DIR"
 if [[ ! -w "$INSTALL_DIR" ]]; then
