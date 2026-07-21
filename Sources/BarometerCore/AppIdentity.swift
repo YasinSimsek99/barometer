@@ -26,16 +26,25 @@ public struct AppIdentity: Codable, Equatable, Sendable {
                     .map { $0.appendingPathComponent("AppIdentity.json") })
             }
         }
-        if let packageResource = Bundle.module.url(forResource: "AppIdentity", withExtension: "json") {
-            candidates.append(packageResource)
-        }
-
         for url in candidates {
             if let data = try? Data(contentsOf: url),
                let value = try? JSONDecoder().decode(AppIdentity.self, from: data) {
                 return value
             }
         }
+
+        // Last resort only: SwiftPM's generated Bundle.module accessor assumes
+        // the resource bundle sits beside the executable (true for `swift run`/
+        // `swift test`), and calls fatalError if it doesn't — which is exactly
+        // what happens once build-app.sh repackages the executable into
+        // Contents/MacOS with resources under Contents/Resources. Never touch
+        // Bundle.module unless every path-based candidate above has failed.
+        if let packageResource = Bundle.module.url(forResource: "AppIdentity", withExtension: "json"),
+           let data = try? Data(contentsOf: packageResource),
+           let value = try? JSONDecoder().decode(AppIdentity.self, from: data) {
+            return value
+        }
+
         preconditionFailure("AppIdentity.json is missing or invalid")
     }()
 }
