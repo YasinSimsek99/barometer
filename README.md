@@ -12,6 +12,11 @@ It reads only `rate_limits.five_hour` and `rate_limits.seven_day` from Claude Co
 
 Left-click the menu bar icon for the usage panel. Right-click for quick access to refresh, display style, notifications, launch at login, and settings.
 
+<p>
+  <img src="Design/screenshots/menu-bar.png" alt="Barometer's ring icon and 5-hour countdown in the menu bar" width="320"><br>
+  <img src="Design/screenshots/panel.png" alt="Barometer's usage panel showing highest usage and the 5-hour/7-day breakdown" width="280">
+</p>
+
 ## Requirements
 
 - macOS 14 Sonoma or later
